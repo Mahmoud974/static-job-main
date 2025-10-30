@@ -1,0 +1,15 @@
+FROM node:18-alpine
+
+# Installer json-server
+RUN npm install -g json-server
+
+WORKDIR /data
+
+# Copier la base de données fake
+COPY src/assets/db.json /data/db.json
+
+# Exposer le port
+EXPOSE 3004
+
+# Lancer json-server
+CMD ["json-server", "--watch", "/data/db.json", "--port", "3004"]
