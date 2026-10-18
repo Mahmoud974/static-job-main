@@ -1,0 +1,56 @@
+name: Build and Push Docker Images to AWS ECR
+
+on:
+  push:
+    branches:
+    - main
+  workflow_dispatch:
+
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout GitHub repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Verify AWS identity
+      run: aws sts get-caller-identity
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push React frontend
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build \
+          -t "$REGISTRY/static-job-frontend:$IMAGE_TAG" \
+          -f Dockerfile .
+
+        docker push "$REGISTRY/static-job-frontend:$IMAGE_TAG"
+
+    - name: Build and push JSON Server API
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build \
+          -t "$REGISTRY/static-job-api:$IMAGE_TAG" \
+          -f Dockerfile.json-server .
+
+        docker push "$REGISTRY/static-job-api:$IMAGE_TAG"
