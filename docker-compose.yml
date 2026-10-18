@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   frontend:
@@ -15,6 +14,40 @@ services:
       context: .
       dockerfile: Dockerfile.json-server
     ports:
-      - "3004:3004"
+      - "127.0.0.1:3004:3004"
     volumes:
       - ./src/assets/db.json:/data/db.json
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.2
+    command:
+      - "--nginx.scrape-uri=http://frontend/nginx_status"
+    depends_on:
+      - frontend
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - nginx-exporter
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+volumes:
+  prometheus_data:
+  grafana_data:
