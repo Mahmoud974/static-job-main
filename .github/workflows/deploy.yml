@@ -172,7 +172,7 @@ jobs:
             echo 'Checking JSON Server on port 3004...'
             API_OK=false
             for attempt in $(seq 1 12); do
-              if curl --fail --silent --show-error http://127.0.0.1:3004/articles -o /dev/null; then
+              if curl --fail --silent --show-error http://127.0.0.1/api/articles -o /dev/null; then
                 API_OK=true
                 break
               fi
