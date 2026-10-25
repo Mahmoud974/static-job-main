@@ -1,0 +1,6 @@
+aws_region = "eu-west-3"
+
+# Replace with your EXISTING AWS resource IDs.
+instance_id = "i-REPLACE_ME"
+vpc_id     = "vpc-REPLACE_ME"
+subnet_id  = "subnet-REPLACE_ME"

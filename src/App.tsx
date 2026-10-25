@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { X, Terminal, Circle } from "lucide-react";
+import jobsData from "./assets/db.json";
 
 type Task = {
-  id: number;
+  id: number | string;
   company: string;
-  logo: string;
+  logo?: string;
   position: string;
   postedAt: string;
   contract: string;
@@ -25,6 +26,35 @@ type FilterbarProps = {
   setSearchLevel: (value: string) => void;
   setSearchLanguage: (value: string) => void;
 };
+
+// JSON Server utilisait la collection /articles : elle se trouve ici dans db.json.
+// Accepte également un fichier JSON dont la racine est directement un tableau.
+const rawData: unknown = jobsData;
+const articles: unknown = Array.isArray(rawData)
+  ? rawData
+  : rawData && typeof rawData === "object" && "articles" in rawData
+    ? (rawData as { articles: unknown }).articles
+    : null;
+
+const isTask = (value: unknown): value is Task => {
+  if (!value || typeof value !== "object") return false;
+  const job = value as Record<string, unknown>;
+  return (
+    (typeof job.id === "number" || typeof job.id === "string") &&
+    typeof job.company === "string" &&
+    typeof job.position === "string" &&
+    typeof job.postedAt === "string" &&
+    typeof job.contract === "string" &&
+    typeof job.location === "string" &&
+    typeof job.role === "string" &&
+    typeof job.level === "string" &&
+    Array.isArray(job.languages) && job.languages.every((v) => typeof v === "string") &&
+    Array.isArray(job.tools) && job.tools.every((v) => typeof v === "string")
+  );
+};
+
+const validData = Array.isArray(articles) && articles.every(isTask);
+const jobs: Task[] = validData ? (articles as Task[]) : [];
 
 function Filterbar({
   searchRole,
@@ -47,9 +77,7 @@ function Filterbar({
           <Circle className="w-2.5 h-2.5 fill-slate-700 text-slate-700" />
           <Circle className="w-2.5 h-2.5 fill-slate-700 text-slate-700" />
           <Circle className="w-2.5 h-2.5 fill-slate-700 text-slate-700" />
-          <span className="ml-3 text-[11px] font-mono text-slate-500 tracking-wide">
-            jobs — filter
-          </span>
+          <span className="ml-3 text-[11px] font-mono text-slate-500 tracking-wide">jobs — filter</span>
         </div>
         <div className="px-4 py-4 font-mono text-sm">
           <div className="flex flex-wrap items-center gap-2">
@@ -122,14 +150,10 @@ function Card({ task, index, setSearchRole, setSearchLevel, setSearchLanguage }:
   return (
     <li
       className={`group relative bg-slate-900 border rounded-lg px-5 py-5 lg:px-6 flex flex-col lg:flex-row lg:items-center gap-4 transition-colors ${
-        task.featured
-          ? "border-lime-400/50"
-          : "border-slate-800 hover:border-slate-700"
+        task.featured ? "border-lime-400/50" : "border-slate-800 hover:border-slate-700"
       }`}
     >
-      {task.featured && (
-        <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg bg-lime-400" />
-      )}
+      {task.featured && <span className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg bg-lime-400" />}
       <span className="hidden lg:block font-mono text-xs text-slate-600 w-6 text-right select-none">
         {String(index + 1).padStart(2, "0")}
       </span>
@@ -170,47 +194,19 @@ function Card({ task, index, setSearchRole, setSearchLevel, setSearchLanguage }:
 }
 
 export default function App() {
-  const [db, setDb] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchRole, setSearchRole] = useState("");
   const [searchLevel, setSearchLevel] = useState("");
   const [searchLanguage, setSearchLanguage] = useState("");
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadArticles() {
-      try {
-        const response = await fetch("/api/articles", { signal: controller.signal });
-        if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-        const data: unknown = await response.json();
-        if (!Array.isArray(data)) throw new Error("Réponse API inattendue : tableau attendu");
-        if (!controller.signal.aborted) setDb(data as Task[]);
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error("Impossible de charger les articles :", err);
-          setError("Impossible de charger les offres. Vérifie que JSON Server fonctionne.");
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    }
-
-    void loadArticles();
-    return () => controller.abort();
-  }, []);
-
   const filtered = useMemo(
     () =>
-      db.filter((item) =>
-        (searchRole === "" || item.role === searchRole) &&
-        (searchLevel === "" || item.level === searchLevel) &&
-        (searchLanguage === "" ||
-          item.languages.includes(searchLanguage) ||
-          item.tools.includes(searchLanguage))
+      jobs.filter(
+        (item) =>
+          (searchRole === "" || item.role === searchRole) &&
+          (searchLevel === "" || item.level === searchLevel) &&
+          (searchLanguage === "" || item.languages.includes(searchLanguage) || item.tools.includes(searchLanguage))
       ),
-    [db, searchRole, searchLevel, searchLanguage]
+    [searchRole, searchLevel, searchLanguage]
   );
 
   return (
@@ -228,7 +224,7 @@ export default function App() {
           <Terminal className="w-6 h-6 text-lime-400" />
           <span className="font-mono text-sm tracking-wide">
             ~/jobs <span className="text-lime-400">$</span>{" "}
-            {loading ? "loading..." : error ? "error" : `${filtered.length} results`}
+            {!validData ? "error" : `${filtered.length} results`}
           </span>
         </div>
       </div>
@@ -243,14 +239,9 @@ export default function App() {
       />
 
       <div className="lg:max-w-5xl mx-auto px-4 lg:px-0 mt-10 pb-16" aria-live="polite">
-        {loading ? (
-          <p className="text-center font-mono text-sm text-lime-400 py-16">Chargement des offres...</p>
-        ) : error ? (
+        {!validData ? (
           <div role="alert" className="text-center font-mono text-sm text-red-400 py-16">
-            <p>{error}</p>
-            <button type="button" onClick={() => window.location.reload()} className="mt-4 underline">
-              Réessayer
-            </button>
+            Données invalides : vérifie que src/assets/db.json contient une collection "articles" avec les champs attendus.
           </div>
         ) : filtered.length === 0 ? (
           <p className="text-center font-mono text-sm text-slate-600 py-16 border border-dashed border-slate-800 rounded-lg">
